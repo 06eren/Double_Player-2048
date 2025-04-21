@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 Hard Mod</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            height: 100vh;
+            background-color: #faf8ef;
+            font-family: Arial, sans-serif;
+            position: relative;
+        }
+        .game-container {
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 90px);
+            grid-template-rows: repeat(4, 90px);
+            gap: 10px;
+            background-color: #bbada0;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .cell {
+            width: 90px;
+            height: 90px;
+            background: #cdc1b4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: all 0.2s ease;
+        }
+        .cell[data-value="2"] { background-color: #eee4da; color: #776e65; }
+        .cell[data-value="4"] { background-color: #ede0c8; color: #776e65; }
+        .cell[data-value="8"] { background-color: #f2b179; color: white; }
+        .cell[data-value="16"] { background-color: #f59563; color: white; }
+        .cell[data-value="32"] { background-color: #f67c5f; color: white; }
+        .cell[data-value="64"] { background-color: #f65e3b; color: white; }
+        .cell[data-value="128"] { background-color: #edcf72; color: white; }
+        .cell[data-value="256"] { background-color: #edcc61; color: white; }
+        .cell[data-value="512"] { background-color: #edc850; color: white; }
+        .cell[data-value="1024"] { background-color: #edc53f; color: white; }
+        .cell[data-value="2048"] { background-color: #edc22e; color: white; }
+        .restart {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            background: #bbada0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            font-size: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="restart" onclick="restartGame()">🔄</div>
+    <div class="message" id="messageBox"></div>
+    <div class="game-container">
+        <h2>Oyuncu 1</h2>
+        <div class="grid" id="grid1"></div>
+        <p>Skor: <span id="score1">0</span></p>
+    </div>
+    <div class="game-container">
+        <h2>Oyuncu 2</h2>
+        <div class="grid" id="grid2"></div>
+        <p>Skor: <span id="score2">0</span></p>
+    </div>
+    <script>
+        class Game {
+            constructor(gridId, scoreId) {
+                this.gridElement = document.getElementById(gridId);
+                this.scoreElement = document.getElementById(scoreId);
+                this.score = 0;
+                this.grid = Array.from({ length: 4 }, () => Array(4).fill(0));
+                this.setup();
+            }
+            setup() {
+                this.spawnTile(8);  
+                this.spawnTile(16); 
+                this.updateGrid();
+            }
+            spawnTile(value) {
+                let emptyCells = [];
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        if (this.grid[r][c] === 0) emptyCells.push([r, c]);
+                    }
+                }
+                if (emptyCells.length > 0) {
+                    let [r, c] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                    let randomValue = this.getRandomTileValue();
+                    this.grid[r][c] = randomValue;
+                }
+            }
+            getRandomTileValue() {
+                const values = [2, 4, 8, 16, 32, 64, 128, 256]; 
+                return values[Math.floor(Math.random() * values.length)];
+            }
+            updateGrid() {
+                this.gridElement.innerHTML = "";
+                this.grid.forEach(row => {
+                    row.forEach(value => {
+                        const cell = document.createElement("div");
+                        cell.classList.add("cell");
+                        cell.setAttribute('data-value', value);
+                        cell.textContent = value === 0 ? "" : value;
+                        this.gridElement.appendChild(cell);
+                    });
+                });
+                this.scoreElement.textContent = this.score;
+            }
+            move(direction) {
+                let moved = false;
+                switch (direction) {
+                    case "w": 
+                        moved = this.moveUp();
+                        break;
+                    case "s": 
+                        moved = this.moveDown();
+                        break;
+                    case "a": 
+                        moved = this.moveLeft();
+                        break;
+                    case "d": 
+                        moved = this.moveRight();
+                        break;
+                    case "ArrowUp": 
+                        moved = this.moveUp();
+                        break;
+                    case "ArrowDown": 
+                        moved = this.moveDown();
+                        break;
+                    case "ArrowLeft": 
+                        moved = this.moveLeft();
+                        break;
+                    case "ArrowRight": 
+                        moved = this.moveRight();
+                        break;
+                }
+                if (moved) {
+                    this.spawnTile(2);  
+                    this.updateGrid();
+                    if (this.isGameOver()) {
+                        this.endGame();
+                    }
+                }
+            }
+            moveUp() {
+                let moved = false;
+                for (let c = 0; c < 4; c++) {
+                    let column = this.grid.map(row => row[c]);
+                    let newColumn = this.moveAndMerge(column);
+                    if (newColumn.some((value, index) => value !== this.grid[index][c])) {
+                        moved = true;
+                        for (let r = 0; r < 4; r++) {
+                            this.grid[r][c] = newColumn[r];
+                        }
+                    }
+                }
+                return moved;
+            }
+            moveDown() {
+                let moved = false;
+                for (let c = 0; c < 4; c++) {
+                    let column = this.grid.map(row => row[c]).reverse();
+                    let newColumn = this.moveAndMerge(column).reverse();
+                    if (newColumn.some((value, index) => value !== this.grid[index][c])) {
+                        moved = true;
+                        for (let r = 0; r < 4; r++) {
+                            this.grid[r][c] = newColumn[r];
+                        }
+                    }
+                }
+                return moved;
+            }
+            moveLeft() {
+                let moved = false;
+                for (let r = 0; r < 4; r++) {
+                    let row = this.grid[r];
+                    let newRow = this.moveAndMerge(row);
+                    if (newRow.some((value, index) => value !== row[index])) {
+                        moved = true;
+                        this.grid[r] = newRow;
+                    }
+                }
+                return moved;
+            }
+            moveRight() {
+                let moved = false;
+                for (let r = 0; r < 4; r++) {
+                    let row = this.grid[r].reverse();
+                    let newRow = this.moveAndMerge(row).reverse();
+                    if (newRow.some((value, index) => value !== this.grid[r][index])) {
+                        moved = true;
+                        this.grid[r] = newRow;
+                    }
+                }
+                return moved;
+            }
+            moveAndMerge(array) {
+                array = array.filter(val => val !== 0);
+                for (let i = 0; i < array.length - 1; i++) {
+                    if (array[i] === array[i + 1]) {
+                        array[i] *= 2;
+                        this.score += array[i];
+                        array[i + 1] = 0;
+                    }
+                }
+                array = array.filter(val => val !== 0);
+                while (array.length < 4) {
+                    array.push(0);
+                }
+                return array;
+            }
+            isGameOver() {
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        if (this.grid[r][c] === 0) return false; 
+                    }
+                }
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 4; c++) {
+                        if (r < 3 && this.grid[r][c] === this.grid[r + 1][c]) return false;
+                        if (c < 3 && this.grid[r][c] === this.grid[r][c + 1]) return false;
+                    }
+                }
+                return true;
+            }
+            endGame() {
+                const messageBox = document.getElementById("messageBox");
+                if (game1.score > game2.score) {
+                    messageBox.textContent = "Oyuncu 1 Kazandı!";
+                } else if (game1.score < game2.score) {
+                    messageBox.textContent = "Oyuncu 2 Kazandı!";
+                } else {
+                    messageBox.textContent = "Beraberlik!";
+                }
+                messageBox.style.display = "block";
+            }
+        }
+
+        function restartGame() {
+            location.reload();
+        }
+
+        const game1 = new Game("grid1", "score1");
+        const game2 = new Game("grid2", "score2");
+
+        document.addEventListener("keydown", (e) => {
+            const wasdKeys = ["w", "a", "s", "d"];
+            const arrowKeys = ["ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"];
+
+            if (wasdKeys.includes(e.key)) {
+                game1.move(e.key);
+            } else if (arrowKeys.includes(e.key)) {
+                game2.move(e.key);
+            }
+        });
+    </script>
+</body>
+</html>
